@@ -5,6 +5,52 @@
  * - Output: JSON with a spoken response and APL display data for Echo Show devices.
  */
 
+// Configuration constants for triggering alerts
+const THRESHOLDS = {
+  // Temperature category difference required to generate an alert (0-7 scale)
+  TEMP_CATEGORY_SWING: 2,
+
+  // Precipitation amount in inches needed for "significant" alert
+  SIGNIFICANT_PRECIPITATION: 0.25,
+
+  // Minimal precipitation amount to mention in inches
+  MINIMAL_PRECIPITATION: 0,
+
+  // Wind speed in mph considered "high" (for alerts)
+  HIGH_WIND_SPEED: 25,
+
+  // How many hours ahead to check for high winds
+  WIND_FORECAST_HOURS: 8,
+
+  // Maximum statements to include in laterChanges summary
+  MAX_LATER_STATEMENTS: 2,
+
+  // Temperature thresholds for categories in Fahrenheit
+  TEMP_THRESHOLDS: {
+    EXTREME_COLD: 0,   // below 0°F
+    VERY_COLD: 20,     // 0-20°F
+    COLD: 35,          // 20-35°F
+    COOL: 50,          // 35-50°F
+    MILD: 65,          // 50-65°F
+    WARM: 80,          // 65-80°F
+    HOT: 90            // 80-90°F, above 90°F is "very hot"
+  },
+
+  // Wind adjustment thresholds and amounts (in °F)
+  WIND_CHILL: {
+    LIGHT: { threshold: 5, adjustment: 4 },    // 5-10 mph
+    MODERATE: { threshold: 11, adjustment: 8 }, // 11-20 mph
+    STRONG: { threshold: 21, adjustment: 12 },  // 21-30 mph
+    SEVERE: { threshold: 30, adjustment: 18 }   // > 30 mph
+  },
+
+  // UV index thresholds
+  UV: {
+    MODERATE: 3,  // When to mention moderate UV protection
+    HIGH: 6       // When to mention high UV protection
+  }
+};
+
 /**
  * Main handler function to be exported for AWS Lambda.
  *
@@ -51,7 +97,40 @@ export async function handler(event) {
 
       // 5) Find matching index in hourly arrays to get humidity & precipitation
       const hourlyTimes = weatherData.hourly.time || [];
-      const idx = hourlyTimes.indexOf(currentTime);
+
+      // Create currentTimeObj once
+      const currentTimeObj = new Date(currentTime);
+
+      // Find the closest hour in the weather data
+      let idx = -1;
+      for (let i = 0; i < hourlyTimes.length; i++) {
+          const hourlyTime = new Date(hourlyTimes[i]);
+          // Find the closest hour (same day, closest or equal hour)
+          if (hourlyTime.getDate() === currentTimeObj.getDate() &&
+              hourlyTime.getMonth() === currentTimeObj.getMonth() &&
+              hourlyTime.getFullYear() === currentTimeObj.getFullYear() &&
+              hourlyTime.getHours() <= currentTimeObj.getHours()) {
+              idx = i;
+              // If exact hour match, break
+              if (hourlyTime.getHours() === currentTimeObj.getHours()) {
+                  break;
+              }
+          }
+      }
+
+      // If we've passed the last hour of the day, use the last hour
+      if (idx === -1 && hourlyTimes.length > 0) {
+          // Find the last hour from yesterday or earlier today
+          for (let i = hourlyTimes.length - 1; i >= 0; i--) {
+              const hourlyTime = new Date(hourlyTimes[i]);
+              if (hourlyTime <= currentTimeObj) {
+                  idx = i;
+                  break;
+              }
+          }
+      }
+
+      console.log(`Current time: ${currentTime}, matched to hourly index: ${idx}, time: ${idx >= 0 ? hourlyTimes[idx] : 'none'}`);
 
       const currentHumidity = (idx >= 0)
           ? weatherData.hourly.relativehumidity_2m[idx]
@@ -73,7 +152,7 @@ export async function handler(event) {
           : null;
 
       // 7) Determine if current time is considered daytime (between sunrise & sunset)
-      const currentTimeObj = new Date(currentTime);
+      // currentTimeObj is already defined above
       const isDaytime = isTimeBetween(currentTimeObj, sunrise ? new Date(sunrise) : null, sunset ? new Date(sunset) : null);
 
       // 8) Convert the WMO weather code to a human-readable description
@@ -123,7 +202,19 @@ export async function handler(event) {
               recommendation: nowRecommendation,
               laterChanges: laterSummary,
               locationName: name,
-              apl: visualData                 // APL data for Echo Show
+              apl: visualData,                // APL data for Echo Show
+              diagnostics: {
+                  currentEffectiveTemp: nowEff,
+                  currentCategory: getTempCategory(nowEff),
+                  currentCategoryIndex: categoryIndex(getTempCategory(nowEff)),
+                  currentTime: currentTime,
+                  hourlyTimesLength: weatherData.hourly.time?.length || 0,
+                  currentTimeIdx: idx,
+                  startDate: currentTimeObj.toISOString(),
+                  hourlyTimeStart: weatherData.hourly.time?.[0] || "none",
+                  hourlyTimeEnd: weatherData.hourly.time?.[weatherData.hourly.time.length-1] || "none",
+                  laterAnalysis: getLaterAnalysisDetails(idx, weatherData, nowEff)
+              }
           })
       };
 
@@ -212,15 +303,18 @@ function getWeatherDescription(code) {
 function computeEffectiveTemp(tempF, windMph, humidity) {
   let eff = tempF;
 
-  // Wind chill approximations (user's table)
-  if (windMph >= 5 && windMph <= 10) {
-      eff -= 4;
-  } else if (windMph >= 11 && windMph <= 20) {
-      eff -= 8;
-  } else if (windMph >= 21 && windMph <= 30) {
-      eff -= 12;
-  } else if (windMph > 30) {
-      eff -= 18;
+  // Wind chill approximations using constants
+  if (windMph >= THRESHOLDS.WIND_CHILL.LIGHT.threshold &&
+      windMph < THRESHOLDS.WIND_CHILL.MODERATE.threshold) {
+      eff -= THRESHOLDS.WIND_CHILL.LIGHT.adjustment;
+  } else if (windMph >= THRESHOLDS.WIND_CHILL.MODERATE.threshold &&
+             windMph < THRESHOLDS.WIND_CHILL.STRONG.threshold) {
+      eff -= THRESHOLDS.WIND_CHILL.MODERATE.adjustment;
+  } else if (windMph >= THRESHOLDS.WIND_CHILL.STRONG.threshold &&
+             windMph < THRESHOLDS.WIND_CHILL.SEVERE.threshold) {
+      eff -= THRESHOLDS.WIND_CHILL.STRONG.adjustment;
+  } else if (windMph >= THRESHOLDS.WIND_CHILL.SEVERE.threshold) {
+      eff -= THRESHOLDS.WIND_CHILL.SEVERE.adjustment;
   }
 
   // Humidity: if hot + high humidity => feels hotter, if cold + very low humidity => feels colder
@@ -235,9 +329,9 @@ function computeEffectiveTemp(tempF, windMph, humidity) {
 
 /**
  * Analyzes the forecast for the rest of today, checking for:
- * - Big category swings (≥ 2 levels different from now)
- * - Notable precipitation (> 0.25)
- * - High wind (> 25 mph) in the next 8 hours
+ * - Big category swings (≥ THRESHOLDS.TEMP_CATEGORY_SWING levels different from now)
+ * - Notable precipitation (> THRESHOLDS.SIGNIFICANT_PRECIPITATION)
+ * - High wind (> THRESHOLDS.HIGH_WIND_SPEED) in the next THRESHOLDS.WIND_FORECAST_HOURS hours
  * Returns a short summary string if changes are found.
  *
  * @function analyzeLaterToday
@@ -248,7 +342,14 @@ function computeEffectiveTemp(tempF, windMph, humidity) {
  */
 function analyzeLaterToday(startIndex, nowEff, weatherData) {
   const hourlyTimes = weatherData.hourly.time || [];
-  if (!hourlyTimes.length || startIndex < 0) return "";
+
+  // Log for debugging
+  console.log(`analyzeLaterToday: startIndex=${startIndex}, hourlyTimes.length=${hourlyTimes.length}`);
+
+  if (!hourlyTimes.length || startIndex < 0) {
+    console.log('Early return: invalid array or startIndex');
+    return "";
+  }
 
   const hourlyTemps = weatherData.hourly.temperature_2m || [];
   const hourlyWinds = weatherData.hourly.windspeed_10m || [];
@@ -260,20 +361,133 @@ function analyzeLaterToday(startIndex, nowEff, weatherData) {
   const currentCategory = getTempCategory(nowEff);
   const currentCatIndex = categoryIndex(currentCategory);
 
+  // Check if we have any future times in the same day
   const nowDate = new Date(hourlyTimes[startIndex]);
+  let hasFutureHoursToday = false;
+
+  for (let i = startIndex + 1; i < hourlyTimes.length; i++) {
+    const t = new Date(hourlyTimes[i]);
+    if (t.getDate() === nowDate.getDate()) {
+      hasFutureHoursToday = true;
+      break;
+    }
+  }
+
+  if (!hasFutureHoursToday) {
+    console.log(`No future hours left in today. Current date: ${nowDate.toISOString()}`);
+    return "";
+  }
+
+  console.log(`Analyzing forecast for rest of ${nowDate.toDateString()}`);
   const statements = [];
 
   // Track conditions already notified to avoid repeating
   const notifiedConditions = {
-      tempSwing: false,
-      precipitation: false,
-      wind: false
+    tempSwing: false,
+    precipitation: false,
+    wind: false
   };
 
   // Scan upcoming hours until midnight local time
   for (let i = startIndex + 1; i < hourlyTimes.length; i++) {
+    const t = new Date(hourlyTimes[i]);
+    // Stop if we cross into the next day
+    if (t.getDate() !== nowDate.getDate()) {
+      console.log(`Breaking loop at index ${i}, date changed to ${t.toDateString()}`);
+      break;
+    }
+
+    const rawTemp = hourlyTemps[i];
+    const wind = hourlyWinds[i];
+    const hum = hourlyHumids[i];
+    const prec = hourlyPrecips[i];
+    const code = hourlyCodes[i];
+
+    const eff = computeEffectiveTemp(rawTemp, wind, hum);
+    const cat = getTempCategory(eff);
+    const catIdx = categoryIndex(cat);
+
+    const hourLog = {
+      time: formatHour(t),
+      rawTemp,
+      effectiveTemp: eff,
+      category: cat,
+      catDiff: Math.abs(catIdx - currentCatIndex),
+      wind,
+      precip: prec
+    };
+    console.log(`Hour analysis: ${JSON.stringify(hourLog)}`);
+
+    // 1) Big temp category swing (using THRESHOLDS.TEMP_CATEGORY_SWING)
+    if (!notifiedConditions.tempSwing &&
+        Math.abs(catIdx - currentCatIndex) >= THRESHOLDS.TEMP_CATEGORY_SWING) {
+      statements.push(`Around ${formatHour(t)}, it may feel ${cat}. ${shortAdviceForCategory(cat)}`);
+      notifiedConditions.tempSwing = true;
+      console.log(`Temperature swing detected at ${formatHour(t)}: ${currentCategory} → ${cat}`);
+    }
+
+    // 2) Precipitation (using THRESHOLDS.SIGNIFICANT_PRECIPITATION)
+    if (!notifiedConditions.precipitation && prec > THRESHOLDS.SIGNIFICANT_PRECIPITATION) {
+      const futureDesc = getWeatherDescription(code).toLowerCase();
+      statements.push(`Expect ${futureDesc} near ${formatHour(t)}, so bring rain gear.`);
+      notifiedConditions.precipitation = true;
+      console.log(`Precipitation event detected at ${formatHour(t)}: ${prec} inches`);
+    }
+
+    // 3) High wind (using THRESHOLDS.HIGH_WIND_SPEED and THRESHOLDS.WIND_FORECAST_HOURS)
+    if (!notifiedConditions.wind &&
+        wind > THRESHOLDS.HIGH_WIND_SPEED &&
+        i <= startIndex + THRESHOLDS.WIND_FORECAST_HOURS) {
+      statements.push(`Strong winds expected around ${formatHour(t)}, consider wind protection.`);
+      notifiedConditions.wind = true;
+      console.log(`High wind detected at ${formatHour(t)}: ${wind} mph`);
+    }
+  }
+
+  if (!statements.length) {
+    console.log('No significant weather changes detected for today');
+    return "";
+  }
+
+  // Keep it concise by limiting statements (using THRESHOLDS.MAX_LATER_STATEMENTS)
+  if (statements.length > THRESHOLDS.MAX_LATER_STATEMENTS) {
+    console.log(`Limiting from ${statements.length} statements to ${THRESHOLDS.MAX_LATER_STATEMENTS}`);
+    statements.splice(THRESHOLDS.MAX_LATER_STATEMENTS);
+  }
+
+  const result = `Later today, watch for changes. ${statements.join(" ")}`;
+  console.log(`Final laterSummary: "${result}"`);
+  return result;
+}
+
+/**
+ * Helper function to get detailed analysis info for diagnostics
+ *
+ * @function getLaterAnalysisDetails
+ * @param {number} startIndex - The hourly array index corresponding to the current time
+ * @param {Object} weatherData - The entire weather JSON from Open-Meteo
+ * @param {number} nowEff - The current effective temperature
+ * @returns {Array} Array of objects with hourly analysis details
+ */
+function getLaterAnalysisDetails(startIndex, weatherData, nowEff) {
+  const hourlyTimes = weatherData.hourly.time || [];
+  if (!hourlyTimes.length || startIndex < 0) return [];
+
+  const hourlyTemps = weatherData.hourly.temperature_2m || [];
+  const hourlyWinds = weatherData.hourly.windspeed_10m || [];
+  const hourlyHumids = weatherData.hourly.relativehumidity_2m || [];
+  const hourlyPrecips = weatherData.hourly.precipitation || [];
+  const hourlyCodes = weatherData.hourly.weathercode || [];
+
+  const currentCategory = getTempCategory(nowEff);
+  const currentCatIndex = categoryIndex(currentCategory);
+  const nowDate = new Date(hourlyTimes[startIndex]);
+
+  // Build detailed analysis for each hour
+  const hourlyAnalysis = [];
+
+  for (let i = startIndex + 1; i < hourlyTimes.length; i++) {
       const t = new Date(hourlyTimes[i]);
-      // Stop if we cross into the next day
       if (t.getDate() !== nowDate.getDate()) break;
 
       const rawTemp = hourlyTemps[i];
@@ -281,41 +495,32 @@ function analyzeLaterToday(startIndex, nowEff, weatherData) {
       const hum = hourlyHumids[i];
       const prec = hourlyPrecips[i];
       const code = hourlyCodes[i];
-
       const eff = computeEffectiveTemp(rawTemp, wind, hum);
       const cat = getTempCategory(eff);
       const catIdx = categoryIndex(cat);
 
-      // 1) Big temp category swing
-      if (!notifiedConditions.tempSwing && Math.abs(catIdx - currentCatIndex) >= 2) {
-          statements.push(`Around ${formatHour(t)}, it may feel ${cat}. ${shortAdviceForCategory(cat)}`);
-          notifiedConditions.tempSwing = true;
-      }
-
-      // 2) Precipitation
-      if (!notifiedConditions.precipitation && prec > 0.25) {
-          const futureDesc = getWeatherDescription(code).toLowerCase();
-          statements.push(`Expect ${futureDesc} near ${formatHour(t)}, so bring rain gear.`);
-          notifiedConditions.precipitation = true;
-      }
-
-      // 3) High wind
-      if (!notifiedConditions.wind && wind > 25 && i <= startIndex + 8) {
-          statements.push(`Strong winds expected around ${formatHour(t)}, consider wind protection.`);
-          notifiedConditions.wind = true;
-      }
+      hourlyAnalysis.push({
+          time: hourlyTimes[i],
+          formattedTime: formatHour(t),
+          rawTemp,
+          effectiveTemp: eff,
+          category: cat,
+          categoryIndex: catIdx,
+          categoryDifference: Math.abs(catIdx - currentCatIndex),
+          windSpeed: wind,
+          humidity: hum,
+          precipitation: prec,
+          weatherCode: code,
+          weatherDescription: getWeatherDescription(code),
+          triggers: {
+              tempSwing: Math.abs(catIdx - currentCatIndex) >= THRESHOLDS.TEMP_CATEGORY_SWING,
+              precipitation: prec > THRESHOLDS.SIGNIFICANT_PRECIPITATION,
+              wind: wind > THRESHOLDS.HIGH_WIND_SPEED && i <= startIndex + THRESHOLDS.WIND_FORECAST_HOURS
+          }
+      });
   }
 
-  if (!statements.length) {
-      return "";
-  }
-
-  // Keep it concise by limiting to two statements
-  if (statements.length > 2) {
-      statements.splice(2);
-  }
-
-  return `Later today, watch for changes. ${statements.join(" ")}`;
+  return hourlyAnalysis;
 }
 
 /**
@@ -327,13 +532,13 @@ function analyzeLaterToday(startIndex, nowEff, weatherData) {
  * @returns {string} The category
  */
 function getTempCategory(effTemp) {
-  if (effTemp < 0) return "extreme cold";
-  if (effTemp < 20) return "very cold";
-  if (effTemp < 35) return "cold";
-  if (effTemp < 50) return "cool";
-  if (effTemp < 65) return "mild";
-  if (effTemp < 80) return "warm";
-  if (effTemp < 90) return "hot";
+  if (effTemp < THRESHOLDS.TEMP_THRESHOLDS.EXTREME_COLD) return "extreme cold";
+  if (effTemp < THRESHOLDS.TEMP_THRESHOLDS.VERY_COLD) return "very cold";
+  if (effTemp < THRESHOLDS.TEMP_THRESHOLDS.COLD) return "cold";
+  if (effTemp < THRESHOLDS.TEMP_THRESHOLDS.COOL) return "cool";
+  if (effTemp < THRESHOLDS.TEMP_THRESHOLDS.MILD) return "mild";
+  if (effTemp < THRESHOLDS.TEMP_THRESHOLDS.WARM) return "warm";
+  if (effTemp < THRESHOLDS.TEMP_THRESHOLDS.HOT) return "hot";
   return "very hot";
 }
 
@@ -388,10 +593,10 @@ function getClothingRecommendation(effTemp, precip, windSpeed, humidity, uvIndex
   };
   let advice = baseAdviceMap[cat] || "Dress comfortably.";
 
-  // Precip check
-  if (precip > 0.25) {
+  // Precip check (using threshold constants)
+  if (precip > THRESHOLDS.SIGNIFICANT_PRECIPITATION) {
       advice += " Bring a waterproof layer.";
-  } else if (precip > 0) {
+  } else if (precip > THRESHOLDS.MINIMAL_PRECIPITATION) {
       advice += " Consider a light rain jacket.";
   }
 
@@ -405,7 +610,7 @@ function getClothingRecommendation(effTemp, precip, windSpeed, humidity, uvIndex
   }
 
   // Wind + cold
-  if (windSpeed > 10 && effTemp < 50) {
+  if (windSpeed > 10 && effTemp < THRESHOLDS.TEMP_THRESHOLDS.COOL) {
       advice += " A windproof coat helps.";
   }
 
@@ -414,11 +619,11 @@ function getClothingRecommendation(effTemp, precip, windSpeed, humidity, uvIndex
       advice += " Moisture-wicking fabric is good in humidity.";
   }
 
-  // UV mention only if it's daytime
+  // UV mention only if it's daytime (using UV threshold constants)
   if (isDaytime) {
-      if (uvIndex >= 6) {
+      if (uvIndex >= THRESHOLDS.UV.HIGH) {
           advice += " UV is high, wear sunscreen and a hat.";
-      } else if (uvIndex >= 3) {
+      } else if (uvIndex >= THRESHOLDS.UV.MODERATE) {
           advice += " Moderate UV, consider sun protection.";
       }
   }
@@ -558,7 +763,7 @@ function generateAPLData(weatherDesc, effTemp, precip, windSpeed, humidity, uvIn
   }
 
   // Weather-specific items
-  if (precip > 0) {
+  if (precip > THRESHOLDS.MINIMAL_PRECIPITATION) {
     clothingItems.push({
       item: "Umbrella",
       emoji: "☂️"
@@ -576,13 +781,13 @@ function generateAPLData(weatherDesc, effTemp, precip, windSpeed, humidity, uvIn
     });
   }
 
-  if (isDaytime && uvIndex >= 3) {
+  if (isDaytime && uvIndex >= THRESHOLDS.UV.MODERATE) {
     clothingItems.push({
       item: "Sunglasses",
       emoji: "🕶️"
     });
 
-    if (uvIndex >= 6) {
+    if (uvIndex >= THRESHOLDS.UV.HIGH) {
       clothingItems.push({
         item: "Sunscreen",
         emoji: "🧴"
@@ -594,7 +799,7 @@ function generateAPLData(weatherDesc, effTemp, precip, windSpeed, humidity, uvIn
     }
   }
 
-  if (windSpeed > 15) {
+  if (windSpeed > THRESHOLDS.WIND_CHILL.LIGHT.threshold) {
     clothingItems.push({
       item: "Wind Protection",
       emoji: "💨"

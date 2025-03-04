@@ -1,0 +1,220 @@
+{
+  "response": "It's about 54 degrees right now with clear sky conditions. It feels mild. A light jacket or long-sleeve shirt. Moderate UV, consider sun protection. Later today, watch for changes. Around 6 PM, it may feel cool. A light jacket or hoodie should help.",
+  "temperature": 54,
+  "weatherDescription": "Clear Sky",
+  "recommendation": "It feels mild. A light jacket or long-sleeve shirt. Moderate UV, consider sun protection.",
+  "laterChanges": "Later today, watch for changes. Around 6 PM, it may feel cool. A light jacket or hoodie should help.",
+  "locationName": "New York",
+  "apl": {
+    "background": "sunny",
+    "timeOfDay": "day",
+    "clothingRecommendations": [
+      {
+        "item": "Long Sleeve",
+        "emoji": "👕"
+      },
+      {
+        "item": "Long Pants",
+        "emoji": "👖"
+      },
+      {
+        "item": "Sunglasses",
+        "emoji": "🕶️"
+      },
+      {
+        "item": "Wind Protection",
+        "emoji": "💨"
+      }
+    ],
+    "temperature": 50,
+    "temperatureCategory": "mild",
+    "weatherCondition": "Clear Sky",
+    "uvIndex": 4.5,
+    "humidity": 45,
+    "windSpeed": 9.4
+  },
+  "diagnostics": {
+    "currentEffectiveTemp": 50,
+    "currentCategory": "mild",
+    "currentCategoryIndex": 4,
+    "currentTime": "2025-03-04T14:00",
+    "hourlyTimesLength": 168,
+    "currentTimeIdx": 14,
+    "startDate": "2025-03-04T14:00:00.000Z",
+    "hourlyTimeStart": "2025-03-04T00:00",
+    "hourlyTimeEnd": "2025-03-10T23:00",
+    "laterAnalysis": [
+      {
+        "time": "2025-03-04T15:00",
+        "formattedTime": "3 PM",
+        "rawTemp": 54.8,
+        "effectiveTemp": 50.8,
+        "category": "mild",
+        "categoryIndex": 4,
+        "categoryDifference": 0,
+        "windSpeed": 8.9,
+        "humidity": 45,
+        "precipitation": 0,
+        "weatherCode": 0,
+        "weatherDescription": "Clear Sky",
+        "triggers": {
+          "tempSwing": false,
+          "precipitation": false,
+          "wind": false
+        }
+      },
+      {
+        "time": "2025-03-04T16:00",
+        "formattedTime": "4 PM",
+        "rawTemp": 55.7,
+        "effectiveTemp": 51.7,
+        "category": "mild",
+        "categoryIndex": 4,
+        "categoryDifference": 0,
+        "windSpeed": 8.5,
+        "humidity": 36,
+        "precipitation": 0,
+        "weatherCode": 0,
+        "weatherDescription": "Clear Sky",
+        "triggers": {
+          "tempSwing": false,
+          "precipitation": false,
+          "wind": false
+        }
+      },
+      {
+        "time": "2025-03-04T17:00",
+        "formattedTime": "5 PM",
+        "rawTemp": 54.8,
+        "effectiveTemp": 50.8,
+        "category": "mild",
+        "categoryIndex": 4,
+        "categoryDifference": 0,
+        "windSpeed": 6.9,
+        "humidity": 40,
+        "precipitation": 0,
+        "weatherCode": 0,
+        "weatherDescription": "Clear Sky",
+        "triggers": {
+          "tempSwing": false,
+          "precipitation": false,
+          "wind": false
+        }
+      },
+      {
+        "time": "2025-03-04T18:00",
+        "formattedTime": "6 PM",
+        "rawTemp": 48.9,
+        "effectiveTemp": 44.9,
+        "category": "cool",
+        "categoryIndex": 3,
+        "categoryDifference": 1,
+        "windSpeed": 7.6,
+        "humidity": 52,
+        "precipitation": 0,
+        "weatherCode": 1,
+        "weatherDescription": "Mainly Clear",
+        "triggers": {
+          "tempSwing": true,
+          "precipitation": false,
+          "wind": false
+        }
+      },
+      {
+        "time": "2025-03-04T19:00",
+        "formattedTime": "7 PM",
+        "rawTemp": 47,
+        "effectiveTemp": 43,
+        "category": "cool",
+        "categoryIndex": 3,
+        "categoryDifference": 1,
+        "windSpeed": 10,
+        "humidity": 52,
+        "precipitation": 0,
+        "weatherCode": 0,
+        "weatherDescription": "Clear Sky",
+        "triggers": {
+          "tempSwing": true,
+          "precipitation": false,
+          "wind": false
+        }
+      },
+      {
+        "time": "2025-03-04T20:00",
+        "formattedTime": "8 PM",
+        "rawTemp": 46.8,
+        "effectiveTemp": 42.8,
+        "category": "cool",
+        "categoryIndex": 3,
+        "categoryDifference": 1,
+        "windSpeed": 10.6,
+        "humidity": 54,
+        "precipitation": 0,
+        "weatherCode": 0,
+        "weatherDescription": "Clear Sky",
+        "triggers": {
+          "tempSwing": true,
+          "precipitation": false,
+          "wind": false
+        }
+      },
+      {
+        "time": "2025-03-04T21:00",
+        "formattedTime": "9 PM",
+        "rawTemp": 45.5,
+        "effectiveTemp": 41.5,
+        "category": "cool",
+        "categoryIndex": 3,
+        "categoryDifference": 1,
+        "windSpeed": 8.8,
+        "humidity": 56,
+        "precipitation": 0,
+        "weatherCode": 0,
+        "weatherDescription": "Clear Sky",
+        "triggers": {
+          "tempSwing": true,
+          "precipitation": false,
+          "wind": false
+        }
+      },
+      {
+        "time": "2025-03-04T22:00",
+        "formattedTime": "10 PM",
+        "rawTemp": 43.6,
+        "effectiveTemp": 39.6,
+        "category": "cool",
+        "categoryIndex": 3,
+        "categoryDifference": 1,
+        "windSpeed": 7.4,
+        "humidity": 62,
+        "precipitation": 0,
+        "weatherCode": 2,
+        "weatherDescription": "Partly Cloudy",
+        "triggers": {
+          "tempSwing": true,
+          "precipitation": false,
+          "wind": false
+        }
+      },
+      {
+        "time": "2025-03-04T23:00",
+        "formattedTime": "11 PM",
+        "rawTemp": 42.4,
+        "effectiveTemp": 38.4,
+        "category": "cool",
+        "categoryIndex": 3,
+        "categoryDifference": 1,
+        "windSpeed": 7.2,
+        "humidity": 66,
+        "precipitation": 0,
+        "weatherCode": 0,
+        "weatherDescription": "Clear Sky",
+        "triggers": {
+          "tempSwing": true,
+          "precipitation": false,
+          "wind": false
+        }
+      }
+    ]
+  }
+}

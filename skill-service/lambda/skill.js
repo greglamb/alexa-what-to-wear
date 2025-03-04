@@ -1,5 +1,22 @@
 const Alexa = require('ask-sdk-core');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
+
+function loadConfig() {
+  try {
+    const configPath = path.resolve(__dirname, 'config.json');
+    const configData = fs.readFileSync(configPath, 'utf8');
+    return JSON.parse(configData);
+  } catch (error) {
+    console.error('Error loading configuration:', error);
+    return {
+      apiEndpoint: null
+    };
+  }
+}
+
+const config = loadConfig();
 
 const SkillIntentHandler = {
   canHandle(handlerInput) {
@@ -51,7 +68,8 @@ const SkillIntentHandler = {
                 clothingItems: responseData.apl.clothingRecommendations || [],
                 temperature: responseData.temperature || '',
                 condition: responseData.weatherDescription || '',
-                location: responseData.locationName || zipCode
+                location: responseData.locationName || zipCode,
+                spokenText: spokenMessage
               }
             }
           })
@@ -71,9 +89,10 @@ const SkillIntentHandler = {
   }
 };
 
-// Helper function to call your API Gateway endpoint
+// Updated to use the URL from configuration
 function callHowManyLayersAPI(zipCode) {
-  const url = `https://????.amazonaws.com/AlexaHowManyLayersToday?zip=${zipCode}`;
+  const url = `${config.apiEndpoint}?zip=${zipCode}`;
+
   return new Promise((resolve, reject) => {
     https.get(url, (res) => {
       let data = '';
@@ -92,7 +111,7 @@ function callHowManyLayersAPI(zipCode) {
   });
 }
 
-// Function that returns the APL document - simplified and fixed
+// Function that returns the APL document - with spoken text display
 function getAPLDocument(weatherType) {
   // Fixed color mapping
   const colorMap = {
@@ -174,6 +193,15 @@ function getAPLDocument(weatherType) {
         values: {
           fontSize: '54dp'
         }
+      },
+      textStyleSpoken: {
+        description: 'Spoken text style',
+        extend: 'textStyleBase',
+        values: {
+          fontSize: '16dp',
+          fontStyle: 'italic',
+          textAlign: 'center'
+        }
       }
     },
     layouts: {},
@@ -187,7 +215,7 @@ function getAPLDocument(weatherType) {
           width: '100%',
           height: '100%',
           items: [
-            // Fixed background gradient with explicit colors
+            // Background gradient
             {
               type: 'Frame',
               backgroundColor: colors.start,
@@ -206,7 +234,7 @@ function getAPLDocument(weatherType) {
                 {
                   type: 'Container',
                   width: '100%',
-                  height: '30%',
+                  height: '25%', // Reduced height to make room for spoken text
                   alignItems: 'center',
                   justifyContent: 'center',
                   items: [
@@ -245,14 +273,14 @@ function getAPLDocument(weatherType) {
                     }
                   ]
                 },
-                // Recommended clothing items with emojis - with null check
+                // Recommended clothing items with emojis
                 {
                   type: 'Container',
                   width: '100%',
-                  height: '45%',
+                  height: '40%', // Slightly reduced height
                   paddingLeft: '50dp',
                   paddingRight: '50dp',
-                  paddingTop: '30dp',
+                  paddingTop: '20dp',
                   items: [
                     {
                       type: 'Sequence',
@@ -286,6 +314,38 @@ function getAPLDocument(weatherType) {
                               paddingTop: '5dp'
                             }
                           ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                // Spoken text display
+                {
+                  type: 'Container',
+                  width: '100%',
+                  height: '15%',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingLeft: '20dp',
+                  paddingRight: '20dp',
+                  paddingBottom: '20dp',
+                  items: [
+                    {
+                      type: 'Frame',
+                      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                      borderRadius: '10dp',
+                      width: '100%',
+                      paddingLeft: '15dp',
+                      paddingRight: '15dp',
+                      paddingTop: '10dp',
+                      paddingBottom: '10dp',
+                      items: [
+                        {
+                          type: 'Text',
+                          text: "${weatherData.spokenText}",
+                          style: 'textStyleSpoken',
+                          textAlign: 'center',
+                          textAlignVertical: 'center'
                         }
                       ]
                     }
