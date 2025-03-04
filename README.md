@@ -3,6 +3,7 @@
 This repository contains an Alexa skill that helps users decide what clothing to wear based on current weather conditions. When a user asks "Alexa, ask what I should wear today" the skill fetches the user's location, retrieves weather data from an external API, and provides clothing recommendations.
 
 > **Created with the assistance of AI tools (ChatGPT and Claude)**
+
 > (So if there's a bug in the code or a lie in the documentation, it wasn't me!)
 
 ## Project Architecture
